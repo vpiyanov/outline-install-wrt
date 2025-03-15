@@ -83,12 +83,12 @@ read -p "Enter Outline Server IP: " OUTLINEIP
 read -p "Enter Outline (Shadowsocks) Config (format ss://base64coded@HOST:PORT/?outline=1): " OUTLINECONF
 
 #Step 9. Check for default gateway and save it into DEFGW
-DEFGW=$(ip route | grep default | awk '{print $3}')
-echo 'checked default gateway'
+#DEFGW=$(ip route | grep default | awk '{print $3}')
+#echo 'checked default gateway'
 
 #Step 10. Check for default interface and save it into DEFIF
-DEFIF=$(ip route | grep default | awk '{print $5}')
-echo 'checked default interface'
+#DEFIF=$(ip route | grep default | awk '{print $5}')
+#echo 'checked default interface'
 
 # Step 11: Create script /etc/init.d/tun2socks
 if [ ! -f "/etc/init.d/tun2socks" ]; then
@@ -101,22 +101,25 @@ START=99
 # stops before networking stops
 STOP=89
 
+OUTLINEIP="$OUTLINEIP"
+OUTLINECONF="$OUTLINECONF"
 #PROG=/usr/bin/tun2socks
 #IF="tun1"
-#OUTLINE_CONFIG="$OUTLINECONF"
 #LOGLEVEL="warning"
 #BUFFER="64kb"
+
 
 start_service() {
     procd_open_instance
     procd_set_param user root
-    procd_set_param command /usr/bin/tun2socks -device tun1 -tcp-rcvbuf 64kb -tcp-sndbuf 64kb  -proxy "$OUTLINECONF" -loglevel "warning"
+    procd_set_param command /usr/bin/tun2socks -device tun1 -tcp-rcvbuf 64kb -tcp-sndbuf 64kb  -proxy "\$OUTLINECONF" -loglevel "warning"
     procd_set_param stdout 1
     procd_set_param stderr 1
     procd_set_param respawn "${respawn_threshold:-3600}" "${respawn_timeout:-5}" "${respawn_retry:-5}"
     procd_close_instance
-    ip route add "$OUTLINEIP" via "$DEFGW" #Adds route to OUTLINE Server
-	echo 'route to Outline Server added'
+    DEFGW=\$(ip route | grep default | awk '{print \$3}')
+    ip route add "\$OUTLINEIP" via "\$DEFGW" #Adds route to OUTLINE Server
+	echo 'Route to Outline Server added'
     echo "tun2socks is working!"
 }
 
@@ -132,13 +135,14 @@ shutdown() {
 
 stop_service() {
     service_stop /usr/bin/tun2socks
-    ip route del "$OUTLINEIP" via "$DEFGW" #Removes route to OUTLINE Server
+    ip route del "\$OUTLINEIP" #Removes route to OUTLINE Server
     echo "tun2socks has stopped!"
 
+    echo "Restarting wwan/wan to reset default route"
     ifup wwan
     ifup wan
     sleep 5s
-    echo "restarted wwan/wan to reset default route"
+    echo "Restarted wwan/wan to reset default route"
 }
 
 reload_service() {
