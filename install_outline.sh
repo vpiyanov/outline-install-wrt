@@ -116,11 +116,6 @@ STOP=89
 
 OUTLINEIP="$OUTLINEIP"
 OUTLINECONF="$OUTLINECONF"
-#PROG=/usr/bin/tun2socks
-#IF="tun1"
-#LOGLEVEL="warning"
-#BUFFER="64kb"
-
 
 start_service() {
     procd_open_instance
