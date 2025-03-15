@@ -83,8 +83,9 @@ echo 'found entry into /etc/config/firewall'
 
 
 # Step 7: Restart network
-/etc/init.d/network restart
 echo 'Restarting Network....'
+/etc/init.d/network restart
+echo 'Restarted Network'
 
 
 # Step 8: Read user variable for OUTLINE HOST IP
@@ -231,11 +232,11 @@ fi
 
 # Step 14: Start or stop tun2sock when VPN switch changes status
 cat <<EOL > /etc/hotplug.d/button/vpn
-if [ "$ACTION" = "pressed" ] && [ "$BUTTON" = "BTN_0" ]; then
+if [ "\$ACTION" = "pressed" ] && [ "\$BUTTON" = "BTN_0" ]; then
    logger -t hotplug "VPN switch changed to ON - starting VPN tunnel"
    /etc/init.d/tun2socks start
 fi
-if [ "$ACTION" = "released" ] && [ "$BUTTON" = "BTN_0" ]; then
+if [ "\$ACTION" = "released" ] && [ "\$BUTTON" = "BTN_0" ]; then
    logger -t hotplug "VPN switch changed to OFF - stopping VPN tunnel"
    /etc/init.d/tun2socks stop
 fi
