@@ -1,7 +1,8 @@
 #!/bin/sh
 # Outline scripted, xjasonlyu/tun2socks based installer for OpenWRT.
-# https://github.com/1andrevich/outline-install-wrt
+# https://github.com/vpiyanov/outline-install-wrt
 echo 'Starting Outline OpenWRT install script'
+
 
 # Step 1: Check for kmod-tun
 opkg list-installed | grep kmod-tun > /dev/null
@@ -11,6 +12,7 @@ if [ $? -ne 0 ]; then
     echo 'kmod-tun installed'
 fi
 
+
 # Step 2: Check for ip-full
 opkg list-installed | grep ip-full > /dev/null
 if [ $? -ne 0 ]; then
@@ -18,6 +20,7 @@ if [ $? -ne 0 ]; then
     exit 1
     echo 'ip-full installed'
 fi
+
 
 # Step 3: Check for tun2socks then download tun2socks binary from GitHub
 if [ ! -f "/tmp/tun2socks*" ]; then
@@ -29,12 +32,15 @@ wget https://github.com/1andrevich/outline-install-wrt/releases/download/v2.5.1/
         exit 1
    fi
 fi
+
+
 # Step 4: Check for tun2socks then move binary to /usr/bin
 if [ ! -f "/usr/bin/tun2socks" ]; then
 mv /tmp/tun2socks /usr/bin/
 echo 'moving tun2socks to /usr/bin'
 chmod +x /usr/bin/tun2socks
 fi
+
 
 # Step 5: Check for existing config in /etc/config/network then add entry
 if ! grep -q "config interface 'tunnel'" /etc/config/network; then
@@ -48,6 +54,7 @@ config interface 'tunnel'
     echo 'added entry into /etc/config/network'
 fi
 echo 'found entry into /etc/config/network'
+
 
 # Step 6:Check for existing config /etc/config/firewall then add entry
 if ! grep -q "option name 'proxy'" /etc/config/firewall; then 
@@ -73,14 +80,18 @@ config forwarding
 fi
 
 echo 'found entry into /etc/config/firewall'
+
+
 # Step 7: Restart network
 /etc/init.d/network restart
 echo 'Restarting Network....'
+
 
 # Step 8: Read user variable for OUTLINE HOST IP
 read -p "Enter Outline Server IP: " OUTLINEIP
 # Read user variable for Outline config
 read -p "Enter Outline (Shadowsocks) Config (format ss://base64coded@HOST:PORT/?outline=1): " OUTLINECONF
+
 
 #Step 9. Check for default gateway and save it into DEFGW
 #DEFGW=$(ip route | grep default | awk '{print $3}')
@@ -89,6 +100,7 @@ read -p "Enter Outline (Shadowsocks) Config (format ss://base64coded@HOST:PORT/?
 #Step 10. Check for default interface and save it into DEFIF
 #DEFIF=$(ip route | grep default | awk '{print $5}')
 #echo 'checked default interface'
+
 
 # Step 11: Create script /etc/init.d/tun2socks
 if [ ! -f "/etc/init.d/tun2socks" ]; then
@@ -176,24 +188,16 @@ start() {
     service_started
 }
 EOL
-#Checks rc.local and adds script to rc.local to check default route on startup
-if ! grep -q "sleep 10" /etc/rc.local; then
-sed '/exit 0/i\
-sleep 10\
-#Check if default route is through Outline and change if not\
-if ! ip route | grep -q '\''^default via 172.16.10.2 dev tun1'\''; then\
-    /etc/init.d/tun2socks start\
-fi\
-' /etc/rc.local > /tmp/rc.local.tmp && mv /tmp/rc.local.tmp /etc/rc.local
-		echo "All traffic would be routed through Outline"
-fi
-	else
-		cat <<EOL >> /etc/init.d/tun2socks
+
+else
+
+cat <<EOL >> /etc/init.d/tun2socks
 start() {
     start_service
 }
 EOL
-		echo "No changes to default gateway"
+
+echo "No changes to default gateway"
 fi
 
 echo 'script /etc/init.d/tun2socks created'
@@ -201,13 +205,46 @@ echo 'script /etc/init.d/tun2socks created'
 chmod +x /etc/init.d/tun2socks
 fi
 
+
 # Step 12: Create symbolic link
-if [ ! -f "/etc/rc.d/S99tun2socks" ]; then
-ln -s /etc/init.d/tun2socks /etc/rc.d/S99tun2socks
-echo '/etc/init.d/tun2socks /etc/rc.d/S99tun2socks symlink created'
+#if [ ! -f "/etc/rc.d/S99tun2socks" ]; then
+#ln -s /etc/init.d/tun2socks /etc/rc.d/S99tun2socks
+#echo '/etc/init.d/tun2socks /etc/rc.d/S99tun2socks symlink created'
+#fi
+
+
+# Step 13: Checks rc.local and adds script to rc.local to check VPN switch status and start tun2sock if necessary
+if ! grep -q "sleep 10" /etc/rc.local; then
+  sed '/exit 0/i\
+sleep 10\
+if grep "gpio-512" /sys/kernel/debug/gpio | grep -q "lo"; then\
+    logger -t local_startup "VPN switch is ON - starting VPN tunnel"\
+    /etc/init.d/tun2socks start\
+else\
+    logger -t local_startup "VPN switch is OFF - doing nothing"\
+fi\
+' /etc/rc.local > /tmp/rc.local.tmp && mv /tmp/rc.local.tmp /etc/rc.local
+
+echo "Outline would be started after boot if VPN switch is ON"
 fi
 
-# Step 13: Start service
+
+# Step 14: Start or stop tun2sock when VPN switch changes status
+cat <<EOL > /etc/hotplug.d/button/vpn
+if [ "$ACTION" = "pressed" ] && [ "$BUTTON" = "BTN_0" ]; then
+   logger -t hotplug "VPN switch changed to ON - starting VPN tunnel"
+   /etc/init.d/tun2socks start
+fi
+if [ "$ACTION" = "released" ] && [ "$BUTTON" = "BTN_0" ]; then
+   logger -t hotplug "VPN switch changed to OFF - stopping VPN tunnel"
+   /etc/init.d/tun2socks stop
+fi
+EOL
+
+
+# Step 15: Start service
 /etc/init.d/tun2socks start
+
+
 
 echo 'Script finished'
