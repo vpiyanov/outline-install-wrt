@@ -117,7 +117,6 @@ start_service() {
     procd_close_instance
     ip route add "$OUTLINEIP" via "$DEFGW" #Adds route to OUTLINE Server
 	echo 'route to Outline Server added'
-    ip route save default > /tmp/defroute.save  #Saves existing default route
     echo "tun2socks is working!"
 }
 
@@ -133,9 +132,13 @@ shutdown() {
 
 stop_service() {
     service_stop /usr/bin/tun2socks
-    ip route restore default < /tmp/defroute.save #Restores saved default route
     ip route del "$OUTLINEIP" via "$DEFGW" #Removes route to OUTLINE Server
     echo "tun2socks has stopped!"
+
+    ifup wwan
+    ifup wan
+    sleep 5s
+    echo "restarted wwan/wan to reset default route"
 }
 
 reload_service() {
