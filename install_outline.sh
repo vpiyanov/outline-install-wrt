@@ -204,8 +204,8 @@ EOL
 
 # Step 14: Start or stop tun2sock when VPN switch changes status
 cat <<EOL > /etc/hotplug.d/iface/99-restart-tun2socks
-if [ "$INTERFACE" = "wan" ] || [ "$INTERFACE" = "wwan" ]; then
-    logger -t hotplug-iface "$INTERFACE is $ACTION"
+if [ "\$INTERFACE" = "wan" ] || [ "\$INTERFACE" = "wwan" ]; then
+    logger -t hotplug-iface "\$INTERFACE is \$ACTION"
 
     if grep "gpio-512" /sys/kernel/debug/gpio | grep -q "lo"; then
         logger -t hotplug-iface "VPN switch is ON: restart tun2socks"
