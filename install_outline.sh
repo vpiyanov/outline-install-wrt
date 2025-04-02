@@ -94,16 +94,6 @@ read -p "Enter Outline Server IP: " OUTLINEIP
 # Read user variable for Outline config
 read -p "Enter Outline (Shadowsocks) Config (format ss://base64coded@HOST:PORT/?outline=1): " OUTLINECONF
 
-
-#Step 9. Check for default gateway and save it into DEFGW
-#DEFGW=$(ip route | grep default | awk '{print $3}')
-#echo 'checked default gateway'
-
-#Step 10. Check for default interface and save it into DEFIF
-#DEFIF=$(ip route | grep default | awk '{print $5}')
-#echo 'checked default interface'
-
-
 # Step 11: Create script /etc/init.d/tun2socks
 if [ ! -f "/etc/init.d/tun2socks" ]; then
 cat <<EOL > /etc/init.d/tun2socks
@@ -114,28 +104,31 @@ USE_PROCD=1
 START=99
 STOP=89
 
-OUTLINEIP="45.89.55.209"
-OUTLINECONF="ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpIaDc2aTBNNmxLaXExdzBuS2p4cGg4@45.89.55.209:16490/?outline=1"
+OUTLINEIP="$OUTLINEIP"
+OUTLINECONF="$OUTLINECONF"
 DEVICE="tun1"
 LOGLEVEL="warning"
 BUFFER="64kb"
+NO_WAN_DEFAULT_ROUTE_WHEN_SERVICE_ENABLED="y"
+DEFAULT_ROUTE_BACKUP="/tmp/default_route.backup"
 
 start_service() {
+    logger -s -t tun2socks "Starting..."
     DEFAULT_GW=\$(ip route | grep default | awk '{print \$3}')
     if [ -z "\$DEFAULT_GW" ]; then
-        WWAN_GW=\$(ifstatus wwan | jsonfilter -e '\$.*.route[@.target="0.0.0.0"].nexthop' || ifstatus wwan | jsonfilter -e '\$.inactive.route[@.target="0.0.0.0"].nexthop')
-        WAN_GW=\$(ifstatus wan | jsonfilter -e '\$.*.route[@.target="0.0.0.0"].nexthop' || ifstatus wan | jsonfilter -e '\$.inactive.route[@.target="0.0.0.0"].nexthop')
+        WWAN_GW=\$(ifstatus wwan | jsonfilter -e '\$.route[@.target="0.0.0.0"].nexthop' || ifstatus wwan | jsonfilter -e '\$.inactive.route[@.target="0.0.0.0"].nexthop')
+        WAN_GW=\$(ifstatus wan | jsonfilter -e '\$.route[@.target="0.0.0.0"].nexthop' || ifstatus wan | jsonfilter -e '\$.inactive.route[@.target="0.0.0.0"].nexthop')
         DEFAULT_GW=\${WAN_GW:-\$WWAN_GW}
 
         if [ -z "\$DEFAULT_GW" ]; then
             logger -s -t tun2socks "Default route is not set. Not able to found gateway for wwan/wan."
             exit 1
         else
-            logger -s -t tun2socks "Default route is not set. Gateway found automatically: \$DEFAULT_GW"
+            logger -s -t tun2socks "Default route is not set. Gateway for wwan/wan identified automatically: \$DEFAULT_GW"
         fi
     else
-        logger -s -t tun2socks "Default route is set. Save previous default route to /tmp/defroute.save"
-        ip route save default > /tmp/defroute.save
+        logger -s -t tun2socks "Default route is set. Save previous default route to \$DEFAULT_ROUTE_BACKUP"
+        ip route save default > "\$DEFAULT_ROUTE_BACKUP"
     fi
 
     procd_open_instance
@@ -149,18 +142,19 @@ start_service() {
     logger -s -t tun2socks "Add route to OUTLINE Server"
     ip route add "\$OUTLINEIP" via "\$DEFAULT_GW"
 
-    logger -s -t tun2socks "tun2socks is working!"
+    logger -s -t tun2socks "...Started!"
 }
 
 stop_service() {
+    logger -s -t tun2socks "Stopping..."
     DEFAULT_IFACE=\$(ip route | awk '/default/ {print \$5}')
 
     service_stop /usr/bin/tun2socks
 
-    if [ "\$DEFAULT_IFACE" = "\$DEVICE" ] && [ -e "/tmp/defroute.save" ]; then
+    if [ "\$DEFAULT_IFACE" = "\$DEVICE" ] && [ -e "\$DEFAULT_ROUTE_BACKUP" ]; then
         logger -s -t tun2socks "Restore previous default route"
-        ip route restore default < /tmp/defroute.save
-        rm /tmp/defroute.save
+        ip route restore default < "\$DEFAULT_ROUTE_BACKUP"
+        rm "\$DEFAULT_ROUTE_BACKUP"
     fi
 
     if ip route | grep -q "\$OUTLINEIP"; then
@@ -168,56 +162,109 @@ stop_service() {
         ip route del "\$OUTLINEIP"
     fi
 
-    logger -s -t tun2socks "tun2socks has stopped!"
+    logger -s -t tun2socks "...Stopped!"
+}
+
+# Copied from /etc/rc.common:
+default_disable() {
+    name="\$(basename "\${initscript}")"
+    rm -f "\$IPKG_INSTROOT"/etc/rc.d/S??\$name
+    rm -f "\$IPKG_INSTROOT"/etc/rc.d/K??\$name
+}
+# Copied from /etc/rc.common:
+default_enable() {
+    err=1
+    name="\$(basename "\${initscript}")"
+    [ "\$START" ] && \
+        ln -sf "../init.d/\$name" "\$IPKG_INSTROOT/etc/rc.d/S\${START}\${name##S[0-9][0-9]}" && \
+        err=0
+    [ "\$STOP" ] && \
+        ln -sf "../init.d/\$name" "\$IPKG_INSTROOT/etc/rc.d/K\${STOP}\${name##K[0-9][0-9]}" && \
+        err=0
+    return \$err
+}
+
+# Custom enable command
+enable() {
+    logger -s -t tun2socks "Enabling..."
+
+    default_enable
+
+    if [ "\$NO_WAN_DEFAULT_ROUTE_WHEN_SERVICE_ENABLED" = "y" ]; then
+        logger -t hotplug-button "Disable default route for WAN/WWAN"
+        uci set network.wwan.defaultroute='0'
+        uci set network.wan.defaultroute='0'
+        uci commit network
+    fi
+
+    start
+    logger -s -t tun2socks "...Enabled"
+}
+
+# Custom disable command
+disable() {
+    logger -s -t tun2socks "Disabling..."
+
+    stop
+    default_disable
+
+    if [ "\$NO_WAN_DEFAULT_ROUTE_WHEN_SERVICE_ENABLED" = "y" ]; then
+        logger -t hotplug-button "Enable default route for WAN/WWAN"
+        uci set network.wwan.defaultroute='1'
+        uci set network.wan.defaultroute='1'
+        uci commit network
+
+        logger -t hotplug-button "Restart WAN/WWAN to set default route"
+        ifup wwan
+        ifup wan
+    fi
+    logger -s -t tun2socks "...Disabled"
 }
 EOL
-
-#DEFAULT_GATEWAY=""
-#Ask user to use Outline as default gateway
-#while [ "$DEFAULT_GATEWAY" != "y" ] && [ "$DEFAULT_GATEWAY" != "n" ]; do
-#    echo "Use Outline as default gateway? [y/n]: "
-#    read DEFAULT_GATEWAY
-#done
-
-echo 'script /etc/init.d/tun2socks created'
 chmod +x /etc/init.d/tun2socks
+echo 'script /etc/init.d/tun2socks created'
 fi
 
 
-# Step 12: Create symbolic link
-#if [ ! -f "/etc/rc.d/S99tun2socks" ]; then
-#ln -s /etc/init.d/tun2socks /etc/rc.d/S99tun2socks
-#echo '/etc/init.d/tun2socks /etc/rc.d/S99tun2socks symlink created'
-#fi
+DEFAULT_GATEWAY=""
+#Ask user to use Outline as default gateway
+while [ "$DEFAULT_GATEWAY" != "y" ] && [ "$DEFAULT_GATEWAY" != "n" ]; do
+    echo "Use Outline as default gateway? [y/n]: "
+    read DEFAULT_GATEWAY
+done
 
-# Step 15: Restart tun2sock when wan/wwan change status
-cat <<EOL > /etc/hotplug.d/button/vpn
-if [ "\$ACTION" = "pressed" ] && [ "\$BUTTON" = "BTN_0" ]; then
-   logger -t hotplug-button "VPN switch changed to ON - starting VPN tunnel"
-   /etc/init.d/tun2socks start
+if [ "$DEFAULT_GATEWAY" = "y" ]; then
+    uci set network.tunnel.defaultroute='1'
+    uci commit
 fi
-if [ "\$ACTION" = "released" ] && [ "\$BUTTON" = "BTN_0" ]; then
-   logger -t hotplug-button "VPN switch changed to OFF - stopping VPN tunnel"
-   /etc/init.d/tun2socks stop
+
+
+# Step 14: Start or stop tun2sock when VPN toggle switch changes status
+cat <<EOL > /etc/hotplug.d/button/vpn-toggle-switch
+TOGGLE_SWITCH_BUTTON="BTN_0"
+
+if [ "\$ACTION" = "pressed" ] && [ "\$BUTTON" = "\$TOGGLE_SWITCH_BUTTON" ]; then
+   logger -t hotplug-button "VPN switch \$BUTTON changed to ON - starting VPN tunnel"
+   /etc/init.d/tun2socks enable
+fi
+if [ "\$ACTION" = "released" ] && [ "\$BUTTON" = "\$TOGGLE_SWITCH_BUTTON" ]; then
+   logger -t hotplug-button "VPN switch \$BUTTON changed to OFF - stopping VPN tunnel"
+   /etc/init.d/tun2socks disable
 fi
 EOL
 
-# Step 14: Start or stop tun2sock when VPN switch changes status
+# Step 15: Restart tun2sock when wan/wwan change status
 cat <<EOL > /etc/hotplug.d/iface/99-restart-tun2socks
 if [ "\$INTERFACE" = "wan" ] || [ "\$INTERFACE" = "wwan" ]; then
     logger -t hotplug-iface "\$INTERFACE is \$ACTION"
 
-    if grep "gpio-512" /sys/kernel/debug/gpio | grep -q "lo"; then
-        logger -t hotplug-iface "VPN switch is ON: restart tun2socks"
+    if /etc/init.d/tun2socks enabled; then
+        logger -t hotplug-iface "VPN is enabled: restart tun2socks"
         /etc/init.d/tun2socks restart
     else
-        logger -t hoplug-iface "VPN switch is OFF: doing nothing"
+        logger -t hoplug-iface "VPN is disabled: do nothing"
     fi
 fi
 EOL
-
-# Step 15: Start service
-#/etc/init.d/tun2socks start
-
 
 echo 'Script finished'
