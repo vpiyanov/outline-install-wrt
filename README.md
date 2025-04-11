@@ -6,7 +6,7 @@ OpenWRT /bin/sh script to install Outline (Shadowsocks) with [xjasonlyu/tun2sock
 First, get the script and make it executable:
 
     cd /tmp
-    wget https://raw.githubusercontent.com/1andrevich/outline-install-wrt/main/install_outline.sh -O install_outline.sh
+    wget https://raw.githubusercontent.com/vpiyanov/outline-install-wrt/main/install_outline.sh -O install_outline.sh
     chmod +x install_outline.sh
 
 Check if you have kmod-tun and ip-full installed, if not run:
