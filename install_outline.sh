@@ -243,11 +243,11 @@ cat <<EOL > /etc/rc.button/BTN_0
 #!/bin/sh
 
 if [ "\$ACTION" = "pressed" ]; then
-   logger -t hotplug-button "VPN switch \$BUTTON changed to ON - starting VPN tunnel"
+   logger -t vpn-switch-button "VPN switch \$BUTTON changed to ON - starting VPN tunnel"
    /etc/init.d/tun2socks enable
 fi
 if [ "\$ACTION" = "released" ]; then
-   logger -t hotplug-button "VPN switch \$BUTTON changed to OFF - stopping VPN tunnel"
+   logger -t vpn-switch-button "VPN switch \$BUTTON changed to OFF - stopping VPN tunnel"
    /etc/init.d/tun2socks disable
 fi
 EOL
@@ -258,10 +258,10 @@ cat <<EOL > /etc/rc.button/wps
 
 if [ "$ACTION" = "released" ]; then
   if [ "$SEEN" -lt 1 ]; then
-    logger -t hotplug-button "VPN push button '$BUTTON' short press - enabling VPN tunnel"
+    logger -t vpn-push-button "VPN push button '$BUTTON' short press - enabling VPN tunnel"
     /etc/init.d/tun2socks enable
   else
-    logger -t hotplug-button "VPN push button '$BUTTON' long press - disabling VPN tunnel"
+    logger -t vpn-push-button "VPN push button '$BUTTON' long press - disabling VPN tunnel"
     /etc/init.d/tun2socks disable
   fi
 fi
