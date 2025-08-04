@@ -191,7 +191,7 @@ enable() {
     default_enable
 
     if [ "\$NO_WAN_DEFAULT_ROUTE_WHEN_SERVICE_ENABLED" = "y" ]; then
-        logger -t hotplug-button "Disable default route for WAN/WWAN"
+        logger -s -t tun2socks "Disable default route for WAN/WWAN"
         uci set network.wwan.defaultroute='0'
         uci set network.wan.defaultroute='0'
         uci commit network
@@ -209,12 +209,12 @@ disable() {
     default_disable
 
     if [ "\$NO_WAN_DEFAULT_ROUTE_WHEN_SERVICE_ENABLED" = "y" ]; then
-        logger -t hotplug-button "Enable default route for WAN/WWAN"
+        logger -s -t tun2socks "Enable default route for WAN/WWAN"
         uci set network.wwan.defaultroute='1'
         uci set network.wan.defaultroute='1'
         uci commit network
 
-        logger -t hotplug-button "Restart WAN/WWAN to set default route"
+        logger -s -t tun2socks "Restart WAN/WWAN to set default route"
         ifup wwan
         ifup wan
     fi
