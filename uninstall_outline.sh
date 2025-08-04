@@ -9,4 +9,6 @@ uci del firewall.$(uci show firewall | grep "name='proxy'" | cut -d. -f2)
 echo "Deleting firewall forwarding 'lan-proxy'"
 uci del firewall.$(uci show firewall | grep "name='lan-proxy'" | cut -d. -f2)
 
-
+rm /etc/init.d/tun2socks
+rm /etc/hotplug.d/iface/99-restart-tun2socks
+rm /usr/bin/tun2socks
