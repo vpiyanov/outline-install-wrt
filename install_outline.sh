@@ -238,21 +238,19 @@ if [ "$DEFAULT_GATEWAY" = "y" ]; then
     uci commit
 fi
 
-# TODO use /etc/rc.button
 # Step 14: Enable or disable tun2sock when VPN toggle switch changes status
-cat <<EOL > /etc/hotplug.d/button/vpn-toggle-switch
-TOGGLE_SWITCH_BUTTON="BTN_0"
+cat <<EOL > /etc/rc.button/BTN_0
+#!/bin/sh
 
-if [ "\$ACTION" = "pressed" ] && [ "\$BUTTON" = "\$TOGGLE_SWITCH_BUTTON" ]; then
+if [ "\$ACTION" = "pressed" ]; then
    logger -t hotplug-button "VPN switch \$BUTTON changed to ON - starting VPN tunnel"
    /etc/init.d/tun2socks enable
 fi
-if [ "\$ACTION" = "released" ] && [ "\$BUTTON" = "\$TOGGLE_SWITCH_BUTTON" ]; then
+if [ "\$ACTION" = "released" ]; then
    logger -t hotplug-button "VPN switch \$BUTTON changed to OFF - stopping VPN tunnel"
    /etc/init.d/tun2socks disable
 fi
 EOL
-
 
 # Step 15: Enable or disable tun2sock when VPN push button is pressed
 cat <<EOL > /etc/rc.button/wps
