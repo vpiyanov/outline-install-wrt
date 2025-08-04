@@ -250,6 +250,7 @@ if [ "\$ACTION" = "released" ]; then
    /etc/init.d/tun2socks disable
 fi
 EOL
+chmod a+rwx /etc/rc.button/BTN_0
 fi
 
 # Step 15: Enable or disable tun2sock when VPN push button is pressed
@@ -268,6 +269,7 @@ if [ "$ACTION" = "released" ]; then
     /etc/init.d/tun2socks disable
   fi
 fi
+chmod a+rwx /etc/rc.button/wps
 EOL
 fi
 
