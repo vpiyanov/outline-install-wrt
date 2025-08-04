@@ -225,23 +225,22 @@ chmod +x /etc/init.d/tun2socks
 echo 'script /etc/init.d/tun2socks created'
 fi
 
-
-DEFAULT_GATEWAY=""
-#Ask user to use Outline as default gateway
-while [ "$DEFAULT_GATEWAY" != "y" ] && [ "$DEFAULT_GATEWAY" != "n" ]; do
-    echo "Use Outline as default gateway? [y/n]: "
-    read DEFAULT_GATEWAY
-done
-
-if [ "$DEFAULT_GATEWAY" = "y" ]; then
+# Ask user to use Outline as default gateway
+DEFAULT_GATEWAY="y"
+echo -n "Use Outline as default gateway? [y]: "
+read DEFAULT_GATEWAY
+if [ "$DEFAULT_GATEWAY" = "y" ] || [ -z "$DEFAULT_GATEWAY" ]; then
     uci set network.tunnel.defaultroute='1'
     uci commit
 fi
 
-# Step 14: Enable or disable tun2sock when VPN toggle switch changes status
+# Enable or disable tun2sock when VPN toggle switch changes status
+USE_SWITCH_BUTTON="n"
+echo -n "Use physical switch button to toggle VPN stage? [n]: "
+read USE_SWITCH_BUTTON
+if [ "$USE_SWITCH_BUTTON" = "y" ]; then
 cat <<EOL > /etc/rc.button/BTN_0
 #!/bin/sh
-
 if [ "\$ACTION" = "pressed" ]; then
    logger -t vpn-switch-button "VPN switch \$BUTTON changed to ON - starting VPN tunnel"
    /etc/init.d/tun2socks enable
@@ -251,11 +250,15 @@ if [ "\$ACTION" = "released" ]; then
    /etc/init.d/tun2socks disable
 fi
 EOL
+fi
 
 # Step 15: Enable or disable tun2sock when VPN push button is pressed
+USE_PUSH_BUTTON="n"
+echo -n "Use physical push button (e.g. WPS) to toggle VPN stage? [n]: "
+read USE_PUSH_BUTTON
+if [ "$USE_PUSH_BUTTON" = "y" ]; then
 cat <<EOL > /etc/rc.button/wps
 #!/bin/sh
-
 if [ "$ACTION" = "released" ]; then
   if [ "$SEEN" -lt 1 ]; then
     logger -t vpn-push-button "VPN push button '$BUTTON' short press - enabling VPN tunnel"
@@ -266,6 +269,7 @@ if [ "$ACTION" = "released" ]; then
   fi
 fi
 EOL
+fi
 
 # Step 16: Restart tun2sock when wan/wwan change status
 cat <<EOL > /etc/hotplug.d/iface/99-restart-tun2socks
@@ -281,4 +285,5 @@ if [ "\$INTERFACE" = "wan" ] || [ "\$INTERFACE" = "wwan" ]; then
 fi
 EOL
 
-echo 'Script finished'
+echo 'Script finished.'
+/etc/init.d/tun2socks enable
